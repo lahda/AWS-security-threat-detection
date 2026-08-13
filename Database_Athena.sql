@@ -71,25 +71,38 @@ ORDER BY request_count DESC;
 
 Objectif : détecter curl, python, scanners
 
-SELECT 
-    regexp_extract(log_line, '"([^"]*)"$', 1) as user_agent,
-    COUNT(*) as request_count,
-    COUNT(DISTINCT regexp_extract(log_line, '^([0-9.]+)', 1)) as unique_ips,
+SELECT
+    user_agent,
+    COUNT(*) AS request_count,
+    COUNT(DISTINCT ip) AS unique_ips,
 
-    SUM(CASE 
-        WHEN CAST(regexp_extract(log_line, '" ([0-9]+) ', 1) AS INTEGER) >= 400 THEN 1 
-        ELSE 0 
-    END) as error_count
+    SUM(
+        CASE
+            WHEN status_code >= 400 THEN 1
+            ELSE 0
+        END
+    ) AS error_count
 
-FROM web_security.access_logs
-GROUP BY regexp_extract(log_line, '"([^"]*)"$', 1)
+FROM (
+    SELECT
+        regexp_extract(log_line, '^([0-9.]+)', 1) AS ip,
+        regexp_extract(log_line, '"([^"]*)"$', 1) AS user_agent,
+        CAST(
+            regexp_extract(log_line, '" ([0-9]+) ', 1)
+            AS INTEGER
+        ) AS status_code
 
-HAVING 
-    user_agent LIKE '%curl%' 
-    OR user_agent LIKE '%python%' 
-    OR user_agent LIKE '%Nikto%' 
+    FROM web_security.access_logs
+)
+
+WHERE
+       user_agent LIKE '%curl%'
+    OR user_agent LIKE '%python%'
+    OR user_agent LIKE '%Nikto%'
     OR user_agent LIKE '%sqlmap%'
     OR user_agent LIKE '%bot%'
+
+GROUP BY user_agent
 
 ORDER BY request_count DESC;
 
